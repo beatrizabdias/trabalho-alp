@@ -1,0 +1,11 @@
+package com.example.cariocada.service;
+
+public class LojaTijuca extends EspecialistaLoja {
+    public LojaTijuca() {
+        super("Tijuca");
+    }
+
+    public String descontoProprio() {
+        return "Loja Tijuca: 10% de desconto em produtos da cesta básica!";
+    }
+}

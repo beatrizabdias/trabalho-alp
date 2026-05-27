@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <title>Blackboard Cariocada - Grupo 7</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 30px; background-color: #f4f6f9; color: #333; }
+        h1, h2, h3 { color: #2c3e50; }
+        .membros { background: #eec; padding: 5px 15px; border-radius: 4px; font-size: 0.9em; margin-bottom: 20px; }
+        .container { display: flex; gap: 20px; }
+        .card { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); flex: 1; }
+        .alert-box { background: #fff3cd; color: #856404; padding: 15px; border-radius: 5px; margin-top: 20px; border-left: 5px solid #ffeeba; }
+        .log-box { background: #e0f7fa; color: #006064; padding: 10px; border-radius: 5px; margin-top: 15px; font-size: 0.9em; min-height: 20px; }
+        button { background: #27ae60; color: white; border: none; padding: 10px 15px; cursor: pointer; border-radius: 4px; font-weight: bold; }
+        button:hover { background: #219150; }
+        select, input { padding: 8px; margin-right: 10px; border: 1px solid #ccc; border-radius: 4px; }
+    </style>
+</head>
+<body>
+
+    <h1>Sistema de Estoque Cariocada</h1>
+    <div class="membros">
+        <p><strong>Grupo 7 - Blackboard:</strong> Ana Isabel Matias da Silva Basilio, Beatriz Cardoso Abdias, Igor de Camargo Godoy, Maria Luísa Barreto de Campos Ribeiro</p>
+    </div>
+
+    <div class="container">
+        <div class="card">
+            <h2>Registrar Venda (Especialistas Loja)</h2>
+            <div style="margin-bottom: 15px;">
+                <label>Loja: </label>
+                <select id="selectLoja">
+                    <option value="Tijuca">Tijuca</option>
+                    <option value="Meier">Méier</option>
+                </select>
+                
+                <label>Produto: </label>
+                <select id="selectProduto">
+                    <option value="Arroz">Arroz</option>
+                    <option value="Feijao">Feijão</option>
+                </select>
+
+                <label>Qtd: </label>
+                <input type="number" id="inputQtd" value="5" min="1" style="width: 60px;">
+            </div>
+            
+            <button onclick="vender()">Confirmar Venda</button>
+            
+            <div id="logVenda" class="log-box">Aguardando operações...</div>
+            
+            <div style="margin-top: 25px; font-size: 0.85em; color: #666; border-top: 1px solid #eee; padding-top: 10px;">
+                <strong>Regras Customizadas:</strong>
+                <p id="regraTijuca" style="margin: 5px 0;"></p>
+                <p id="regraMeier" style="margin: 5px 0;"></p>
+            </div>
+        </div>
+
+        <div class="card">
+            <h2>Estado Central do Blackboard</h2>
+            <h3>Estoques Atuais:</h3>
+            <pre id="jsonEstoque" style="background: #273c75; color: white; padding: 15px; border-radius: 5px; font-family: monospace; font-size: 1.1em;"></pre>
+        </div>
+    </div>
+
+    <div class="alert-box">
+        <h3>Quadro de Decisões Compartilhado (Especialista Reposição)</h3>
+        <ul id="listaAlertas" style="padding-left: 20px; font-weight: bold;"></ul>
+    </div>
+
+    <script>
+        const API_URL = "http://localhost:8080/api/cariocada";
+
+        async function carregarDados() {
+            try {
+                const response = await fetch(`${API_URL}/dados`);
+                const data = await response.json();
+                
+                document.getElementById("jsonEstoque").textContent = JSON.stringify(data.estoques, null, 4);
+                document.getElementById("regraTijuca").innerText = data.regraTijuca;
+                document.getElementById("regraMeier").innerText = data.regraMeier;
+
+                const lista = document.getElementById("listaAlertas");
+                lista.innerHTML = "";
+                if(data.alertas.length === 0) {
+                    lista.innerHTML = "<li>Nenhum alerta. Todos os estoques estão abastecidos.</li>";
+                } else {
+                    data.alertas.forEach(alerta => {
+                        let li = document.createElement("li");
+                        li.textContent = alerta;
+                        lista.appendChild(li);
+                    });
+                }
+            } catch (error) {
+                console.error("Erro ao conectar com o backend:", error);
+                document.getElementById("logVenda").innerText = "Erro: O servidor Spring Boot está desligado.";
+            }
+        }
+
+        async function vender() {
+            const loja = document.getElementById("selectLoja").value;
+            const produto = document.getElementById("selectProduto").value;
+            const qtd = document.getElementById("inputQtd").value;
+
+            try {
+                const response = await fetch(`${API_URL}/venda?loja=${loja}&produto=${produto}&quantidade=${qtd}`, { method: 'POST' });
+                const resData = await response.json();
+                document.getElementById("logVenda").innerText = resData.status;
+                carregarDados();
+            } catch (e) {
+                document.getElementById("logVenda").innerText = "Falha ao registrar venda.";
+            }
+        }
+
+        // Inicializa ao abrir a página
+        carregarDados();
+    </script>
+</body>
+</html>
