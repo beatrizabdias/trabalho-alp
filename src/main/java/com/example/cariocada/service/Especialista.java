@@ -1,7 +1,6 @@
 package com.example.cariocada.service;
 
-import com.example.cariocada.model.Blackboard;
-
 public abstract class Especialista {
-    public abstract void executar(Blackboard blackboard);
+    // Método abstrato que todo especialista precisa implementar
+    public abstract void analisarQuadroEstrategico();
 }

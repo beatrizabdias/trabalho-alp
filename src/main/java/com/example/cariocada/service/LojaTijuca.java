@@ -1,6 +1,10 @@
 package com.example.cariocada.service;
 
+import org.springframework.stereotype.Service;
+
+@Service
 public class LojaTijuca extends EspecialistaLoja {
+    
     public LojaTijuca() {
         super("Tijuca");
     }

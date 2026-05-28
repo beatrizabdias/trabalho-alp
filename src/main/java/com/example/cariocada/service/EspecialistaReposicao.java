@@ -1,57 +1,107 @@
 package com.example.cariocada.service;
 
-import java.util.Map;
+import java.util.ArrayList;
+import java.util.List;
+
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
 
 import com.example.cariocada.model.Blackboard;
+import com.example.cariocada.model.Compra;
+import com.example.cariocada.model.Estoque;
+import com.example.cariocada.model.Fornecedor;
 
-public class EspecialistaReposicao extends Especialista {
-    private final int estoqueMinimo = 10;
+@Service
+public class EspecialistaReposicao {
 
-    @Override
-    public void executar(Blackboard blackboard) {
-        // Limpa as sugestões antigas antes de rodar a nova verificação
+    @Autowired
+    private Blackboard blackboard;
+
+    private static final int LIMITE_CRITICO = 10;
+
+    public void analisarQuadroEstrategico() {
+        System.out.println("[ESPECIALISTA REPOSIÇÃO] Analisando dados do Neon...");
         blackboard.limparAlertas();
-        Map<String, Map<String, Integer>> estoques = blackboard.getEstoqueLojas();
 
-        // Varre os estoques compartilhados no Blackboard
-        for (String lojaOrigem : estoques.keySet()) {
-            Map<String, Integer> produtosOrigem = estoques.get(lojaOrigem);
+        List<Estoque> todosEstoques = blackboard.getEstoqueLojas();
+        List<Fornecedor> fornecedores = blackboard.getFornecedores();
+        
+        // Lista temporária para evitar modificar o estado do banco no meio da leitura do laço
+        List<Compra> comprasParaSalvar = new ArrayList<>();
 
-            for (String produto : produtosOrigem.keySet()) {
-                int qtdOrigem = produtosOrigem.get(produto);
+        if (todosEstoques == null) return;
 
-                // Se o produto estiver abaixo do estoque mínimo
-                if (qtdOrigem < estoqueMinimo) {
-                    boolean resolvidoPorTransferencia = false;
+        for (Estoque est : todosEstoques) {
+            if (est != null && est.getLoja() != null && est.getProduto() != null) {
+                
+                if (est.getQuantidade() < LIMITE_CRITICO) {
+                    String nomeLoja = est.getLoja().getNome();
+                    String nomeProduto = est.getProduto().getNome();
+                    int qtdAtual = est.getQuantidade();
 
-                    // Tenta encontrar outra filial que possa suprir a necessidade
-                    for (String lojaDestino : estoques.keySet()) {
-                        if (!lojaOrigem.equals(lojaDestino)) {
-                            int qtdDestino = estoques.get(lojaDestino).getOrDefault(produto, 0);
-                            
-                            // Se a outra filial tiver estoque folgado (ex: mais de 25), sugere transferência
-                            if (qtdDestino > 25) {
-                                sugerirTransferencia(blackboard, lojaDestino, lojaOrigem, produto);
-                                resolvidoPorTransferencia = true;
-                                break;
+                    // Tenta achar uma solução de transferência entre as lojas primeiro
+                    boolean resolvidoPorTransferencia = tentarSugerirTransferencia(nomeLoja, nomeProduto, qtdAtual, todosEstoques);
+
+                    // Se nenhuma outra loja puder ajudar, emite Ordem de Compra para o fornecedor
+                    if (!resolvidoPorTransferencia) {
+                        String nomeFornecedor = "Fornecedor Geral";
+                        
+                        // Busca o fornecedor correto associado a esse produto no banco
+                        if (fornecedores != null) {
+                            for (Fornecedor f : fornecedores) {
+                                if (f.getNome() != null && (f.getNome().equalsIgnoreCase(nomeProduto) || 
+                                   (f.getContato() != null && f.getContato().toLowerCase().contains(nomeProduto.toLowerCase())))) {
+                                    nomeFornecedor = f.getNome() + " (" + f.getContato() + ")";
+                                    break;
+                                }
                             }
                         }
-                    }
 
-                    // Se nenhuma outra filial puder ajudar, gera uma ordem de compra externa
-                    if (!resolvidoPorTransferencia) {
-                        gerarOrdemCompra(blackboard, lojaOrigem, produto);
+                        String alertaCompra = "⚠️ CRÍTICO: " + nomeLoja + " tem apenas " + qtdAtual + " un de " + nomeProduto + 
+                                             ". Solução: Emitir Ordem de Compra para " + nomeFornecedor;
+                        
+                        blackboard.adicionarAlerta(alertaCompra);
+
+                        // Cria o objeto, mas guarda na lista temporária para salvar depois
+                        Compra novaCompra = new Compra();
+                        novaCompra.setProduto(nomeProduto);
+                        novaCompra.setFornecedor(nomeFornecedor);
+                        novaCompra.setDetalhePedido("Pedido automático de reposição de 50 un para a loja " + nomeLoja);
+                        comprasParaSalvar.add(novaCompra);
                     }
                 }
             }
         }
+
+        // SALVAMENTO SEGURO: Agora que o laço terminou, salvamos as ordens de compra de uma vez só
+        for (Compra compra : comprasParaSalvar) {
+            try {
+                blackboard.salvarCompra(compra);
+            } catch (Exception e) {
+                System.out.println("[ERRO REPOSIÇÃO] Falha ao gravar ordem de compra: " + e.getMessage());
+            }
+        }
     }
 
-    public void sugerirTransferencia(Blackboard bb, String de, String para, String produto) {
-        bb.adicionarAlerta("SUGESTÃO: Transferir " + produto + " da filial " + de + " para a filial " + para + ".");
-    }
-
-    public void gerarOrdemCompra(Blackboard bb, String loja, String produto) {
-        bb.adicionarAlerta("COMPRA: Emitir ordem de compra urgente de " + produto + " para a filial " + loja + ".");
+    private boolean tentarSugerirTransferencia(String lojaNecessitada, String produto, int qtdAtual, List<Estoque> estoques) {
+        if (estoques == null) return false;
+        
+        for (Estoque est : estoques) {
+            if (est != null && est.getProduto() != null && est.getLoja() != null) {
+                // Se for o mesmo produto, mas em OUTRA loja
+                if (est.getProduto().getNome().equalsIgnoreCase(produto) && 
+                    !est.getLoja().getNome().equalsIgnoreCase(lojaNecessitada)) {
+                    
+                    // Se a outra loja tiver estoque folgado (mais de 25 un), sugere transferir
+                    if (est.getQuantidade() > 25) {
+                        String alertaTrf = "💡 SUGESTÃO TRF: Mover 15 un de " + produto + " da loja " + est.getLoja().getNome() + 
+                                           " (Estoque: " + est.getQuantidade() + ") para a loja " + lojaNecessitada + ".";
+                        blackboard.adicionarAlerta(alertaTrf);
+                        return true; 
+                    }
+                }
+            }
+        }
+        return false; 
     }
 }

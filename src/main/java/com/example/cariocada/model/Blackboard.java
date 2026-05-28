@@ -1,39 +1,86 @@
 package com.example.cariocada.model;
 
+import com.example.cariocada.repository.CompraRepository;
+import com.example.cariocada.repository.EstoqueRepository;
+import com.example.cariocada.repository.VendaRepository;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Component;
+
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
 
+@Component
 public class Blackboard {
-    private final Map<String, Map<String, Integer>> estoqueLojas = new ConcurrentHashMap<>();
+
+    @Autowired
+    private EstoqueRepository estoqueRepository;
+
+    @Autowired
+    private VendaRepository vendaRepository;
+
+    @Autowired
+    private CompraRepository compraRepository;
+
+    // Listas voláteis apenas para alertas e logs em memória
     private final List<String> alertasEReposicoes = new ArrayList<>();
 
-    public Blackboard() {
-        Map<String, Integer> estoqueTijuca = new ConcurrentHashMap<>();
-        estoqueTijuca.put("Arroz", 50);
-        estoqueTijuca.put("Feijao", 8); 
-        estoqueLojas.put("Tijuca", estoqueTijuca);
-
-        Map<String, Integer> estoqueMeier = new ConcurrentHashMap<>();
-        estoqueMeier.put("Arroz", 12);
-        estoqueMeier.put("Feijao", 40);
-        estoqueLojas.put("Meier", estoqueMeier);
+    // 1. BUSCA DIRETAMENTE DO BANCO NEON (Evita que registros sumam da memória)
+    public List<Estoque> getEstoqueLojas() {
+        try {
+            List<Estoque> lista = estoqueRepository.findAll();
+            if (lista == null) {
+                return new ArrayList<>();
+            }
+            return lista;
+        } catch (Exception e) {
+            System.out.println("[BLACKBOARD ERROR] Erro ao ler estoque do banco: " + e.getMessage());
+            return new ArrayList<>();
+        }
     }
 
-    public Map<String, Map<String, Integer>> getEstoqueLojas() {
-        return estoqueLojas;
-    }
-
+    // 2. MÉTODOS DE ALERTAS (Controle de Quadro)
     public List<String> getAlertasEReposicoes() {
-        return alertasEReposicoes;
+        return this.alertasEReposicoes;
     }
 
     public void adicionarAlerta(String alerta) {
-        this.alertasEReposicoes.add(alerta);
+        if (alerta != null && !this.alertasEReposicoes.contains(alerta)) {
+            this.alertasEReposicoes.add(alerta);
+        }
     }
 
     public void limparAlertas() {
         this.alertasEReposicoes.clear();
+    }
+
+    // 3. PERSISTÊNCIA REAL DE VENDAS E COMPRAS
+    public void salvarVenda(Venda venda) {
+        try {
+            vendaRepository.save(venda);
+        } catch (Exception e) {
+            System.out.println("[BLACKBOARD ERROR] Erro ao salvar venda: " + e.getMessage());
+        }
+    }
+
+    public void salvarCompra(Compra compra) {
+        try {
+            compraRepository.save(compra);
+        } catch (Exception e) {
+            System.out.println("[BLACKBOARD ERROR] Erro ao salvar compra: " + e.getMessage());
+        }
+    }
+
+    // Métodos extras para o Controller não quebrar caso use
+    public List<Venda> getHistoricoVendas() {
+        return vendaRepository.findAll();
+    }
+
+    public List<Compra> getHistoricoComprasFornecedores() {
+        return compraRepository.findAll();
+    }
+
+    public List<Fornecedor> getFornecedores() {
+        // Se você tiver um FornecedorRepository, use-o aqui. Caso contrário, retorne uma lista vazia segura
+        return new ArrayList<>(); 
     }
 }
