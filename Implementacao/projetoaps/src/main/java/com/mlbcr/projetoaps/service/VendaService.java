@@ -13,21 +13,25 @@ import com.mlbcr.projetoaps.repository.LojaRepository;
 import com.mlbcr.projetoaps.repository.ProdutoRepository;
 import com.mlbcr.projetoaps.repository.VendaRepository;
 
+import com.mlbcr.projetoaps.observer.ReposicaoObserver;
+
 @Service
 public class VendaService {
     private final VendaRepository vendaRepository;
     private final EstoqueRepository estoqueRepository;
     private final ProdutoRepository produtoRepository;
     private final LojaRepository lojaRepository;
-    private final ReposicaoService reposicaoService;
+    //private final ReposicaoService reposicaoService;
+    private final ReposicaoObserver reposicaoObserver;
+
 
     public VendaService(VendaRepository vendaRepository,EstoqueRepository estoqueRepository,
-        ProdutoRepository produtoRepository,LojaRepository lojaRepository, ReposicaoService reposicaoService) {
+        ProdutoRepository produtoRepository,LojaRepository lojaRepository, ReposicaoObserver reposicaoObserver) {
         this.vendaRepository = vendaRepository;
         this.estoqueRepository = estoqueRepository;
         this.produtoRepository = produtoRepository;
         this.lojaRepository = lojaRepository;
-        this.reposicaoService = reposicaoService;
+        this.reposicaoObserver = reposicaoObserver;
     }
 
     public Venda registrarVenda(
@@ -71,7 +75,7 @@ public class VendaService {
         Venda vendaSalva = vendaRepository.save(venda);
         
         // verificamos se precisa de reposição
-        reposicaoService.analisarReposicao(produto, loja);
+        reposicaoObserver.atualizar(produto, loja);
         return vendaSalva;
     }
 }

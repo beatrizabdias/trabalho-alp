@@ -14,6 +14,9 @@ import com.mlbcr.projetoaps.repository.LojaRepository;
 import com.mlbcr.projetoaps.repository.OrdemCompraRepository;
 import com.mlbcr.projetoaps.repository.TransferenciaRepository;
 
+import com.mlbcr.projetoaps.strategy.CompraStrategy;
+import com.mlbcr.projetoaps.strategy.TransferenciaStrategy;
+
 @Service
 public class ReposicaoService {
 
@@ -22,8 +25,11 @@ public class ReposicaoService {
     private final OrdemCompraRepository ordemCompraRepository;
     private final LojaRepository lojaRepository;
 
+    private final TransferenciaStrategy transferenciaStrategy;
+    private final CompraStrategy compraStrategy;
+
     private static final int MIN_QTD = 10;
-    private static final int ESTOQUE_TRANSFERENCIA = 25;
+   // private static final int ESTOQUE_TRANSFERENCIA = 25;
     private static final int QTD_TRANSFERENCIA = 15;
     private static final int QTD_COMPRA = 30;
 
@@ -31,12 +37,16 @@ public class ReposicaoService {
             EstoqueRepository estoqueRepository,
             TransferenciaRepository transferenciaRepository,
             OrdemCompraRepository ordemCompraRepository,
-            LojaRepository lojaRepository) {
+            LojaRepository lojaRepository,    
+            TransferenciaStrategy transferenciaStrategy,
+            CompraStrategy compraStrategy) {
 
         this.estoqueRepository = estoqueRepository;
         this.transferenciaRepository = transferenciaRepository;
         this.ordemCompraRepository = ordemCompraRepository;
         this.lojaRepository = lojaRepository;
+        this.transferenciaStrategy = transferenciaStrategy;
+        this.compraStrategy = compraStrategy;
     }
 
     public void analisarReposicao(Produto produto, Loja loja) {
@@ -64,14 +74,25 @@ public class ReposicaoService {
                 .findByProdutoAndLoja(produto, outraLoja)
                 .orElse(null);
 
-        if (estoqueOutraLoja != null &&
-                estoqueOutraLoja.getQuantidade() > ESTOQUE_TRANSFERENCIA) {
+        if (transferenciaStrategy.podeAplicar(estoqueOutraLoja)) {
 
-            realizarTransferencia(produto, loja, outraLoja, estoqueAtual, estoqueOutraLoja);
+            realizarTransferencia(
+                    produto,
+                    loja,
+                    outraLoja,
+                    estoqueAtual,
+                    estoqueOutraLoja
+            );
+
             return;
         }
 
-        gerarOrdemCompra(produto, loja);
+        if (compraStrategy.podeAplicar(estoqueOutraLoja)) {
+
+            gerarOrdemCompra(produto, loja);
+        }
+
+        
     }
 
     private void realizarTransferencia(
